@@ -17,6 +17,14 @@ public class ModelToImageSettings : ScriptableObject
     [Range(0f, 1f)] public float ModelSizeInImage;
     public bool RenderBackground;
 
+    [System.Serializable]
+    public struct SavedModelData
+    {
+        public string Path;
+        public Vector3 EulerRotation;
+    }
+    public List<SavedModelData> SavedModels;
+
 
     private void InitDefaults()
     {
@@ -27,6 +35,13 @@ public class ModelToImageSettings : ScriptableObject
         RenderTextureSettings.ImageWrapMode = TextureWrapMode.Clamp;
         RenderTextureSettings.ImageFilterMode = FilterMode.Bilinear;
         ModelSizeInImage = 0.75f;
+    }
+
+    public void SaveLoadedModels(List<SavedModelData> models)
+    {
+        SavedModels = models;
+        EditorUtility.SetDirty(this);
+        AssetDatabase.SaveAssetIfDirty(this);
     }
 
 

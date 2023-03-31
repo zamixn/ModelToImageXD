@@ -6,6 +6,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using static ModelScreenShotter;
+using static ModelToImageSettings;
 
 public class ModelToImageEditor : EditorWindow
 {
@@ -16,9 +17,12 @@ public class ModelToImageEditor : EditorWindow
         window.minSize = new Vector2(400, 400);
         window.Show();
     }
-    private const int ModelsPerPage = 10;
+    private const int ModelsPerPage = 5;
+    private int MaxPages => Models.Count / ModelsPerPage;
     public bool RenderSceneLoaded;
     private ModelToImageSettings Settings;
+
+    private Vector2 ModelsScrollPosition;
 
     private class ModelInfo
     {
@@ -26,18 +30,26 @@ public class ModelToImageEditor : EditorWindow
         public string Path;
         public GameObject Model;
         public Vector3 EulerRotation;
+
+        public void RefreshMetaData()
+        {
+            Path = AssetDatabase.GetAssetPath(Model);
+            Importer = (ModelImporter)AssetImporter.GetAtPath(Path);
+        }
     }
 
     private List<ModelInfo> Models;
     private List<ModelInfo> ModelsToUnload;
+    private Dictionary<int, ModelInfo> ModelsToInsert;
     private int CurrentPage;
 
     private void Init()
     {
         Models = new List<ModelInfo>();
         ModelsToUnload = new List<ModelInfo>();
+        ModelsToInsert = new Dictionary<int, ModelInfo>();
         Settings = ModelToImageSettings.GetInstance();
-
+        LoadModelsFromSettings();
     }
 
     private void OnGUI()
@@ -97,46 +109,89 @@ public class ModelToImageEditor : EditorWindow
         GUILayout.Space(20);
 
 
-        if (GUILayout.Button("Load Models"))
+        if (GUILayout.Button("Load All Models In Project"))
             LoadModels();
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Load Models In Folder"))
+            LoadModelsInFolder();
+        if (GUILayout.Button("Load Single Model"))
+            LoadSingleModel();
+        GUILayout.EndHorizontal();
+        if (GUILayout.Button("Load Saved Models"))
+            LoadModelsFromSettings();
+        if (GUILayout.Button("Save Loaded Models"))
+            TrySavingLoadedModels();
 
-        Settings.LoadedModelsShown = EditorGUILayout.Foldout(Settings.LoadedModelsShown, $"Loaded models ({Models.Count}):");
-        if (Settings.LoadedModelsShown)
-        {
-            for (int i = CurrentPage * ModelsPerPage; i < (CurrentPage + 1) * ModelsPerPage && i < Models.Count; i++)
-            {
-                var modelInfo = Models[i];
-                GUILayout.BeginHorizontal();
-                GUIStyle indexStyle = new GUIStyle(GUI.skin.label);
-                indexStyle.alignment = TextAnchor.MiddleRight;
-                GUILayout.Label($"{i}", indexStyle, GUILayout.MaxWidth(50));
-
-                GUI.enabled = false;
-                EditorGUILayout.ObjectField(modelInfo.Model, typeof(GameObject), false);
-                GUI.enabled = true;
-
-                modelInfo.EulerRotation = EditorGUILayout.Vector3Field("Rot", modelInfo.EulerRotation, GUILayout.MaxWidth(120));
-
-                if (GUILayout.Button("Remove", GUILayout.MaxWidth(60)))
-                    ModelsToUnload.Add(modelInfo);
-
-                GUILayout.EndHorizontal();
-            }
-        }
-
-        foreach (var model in ModelsToUnload)
-        {
-            Models.Remove(model);
-        }
-        ModelsToUnload.Clear();
-        GUILayout.Space(20);
 
         GUILayout.Label("Take Screenshots", subHeadStyle);
         if (GUILayout.Button("Take Screenshots"))
         {
             TakeModelImages();
         }
+        GUILayout.Space(20);
 
+        Settings.LoadedModelsShown = EditorGUILayout.Foldout(Settings.LoadedModelsShown, $"Loaded models ({Models.Count}):");
+        if (Settings.LoadedModelsShown)
+        {
+            GUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField($"Current page: ");
+            CurrentPage = Mathf.Clamp(EditorGUILayout.IntField(CurrentPage, GUILayout.MaxWidth(40)), 0, MaxPages);
+            EditorGUILayout.LabelField($"/ {MaxPages}", GUILayout.MaxWidth(30));
+            if (GUILayout.Button("Prev", GUILayout.MaxWidth(40)) && CurrentPage > 0)
+                CurrentPage--;
+            if (GUILayout.Button("Next", GUILayout.MaxWidth(40)) && CurrentPage < MaxPages)
+                CurrentPage++;
+
+            GUILayout.EndHorizontal();
+
+            ModelsScrollPosition = EditorGUILayout.BeginScrollView(ModelsScrollPosition);
+            for (int i = CurrentPage * ModelsPerPage; i < (CurrentPage + 1) * ModelsPerPage && i < Models.Count; i++)
+            {
+                var modelInfo = Models[i];
+                GUILayout.BeginHorizontal();
+                GUIStyle indexStyle = new GUIStyle(GUI.skin.label);
+                indexStyle.alignment = TextAnchor.MiddleRight;
+                GUILayout.Label($"{i+1}", indexStyle, GUILayout.MaxWidth(50));
+
+                EditorGUILayout.ObjectField(modelInfo.Model, typeof(GameObject), false, GUILayout.MaxWidth(200));
+
+                modelInfo.EulerRotation = EditorGUILayout.Vector3Field("Rot", modelInfo.EulerRotation, GUILayout.MaxWidth(150));
+
+                if (GUILayout.Button("-", GUILayout.MaxWidth(20)))
+                    ModelsToUnload.Add(modelInfo);
+                if (GUILayout.Button("+", GUILayout.MaxWidth(20)))
+                    ModelsToInsert.Add(i+1, new ModelInfo());
+
+
+                GUILayout.EndHorizontal();
+            }
+            EditorGUILayout.EndScrollView();
+        }
+
+        foreach (var item in ModelsToInsert)
+        {
+            Models.Insert(item.Key, item.Value);
+        }
+        ModelsToInsert.Clear();
+        foreach (var model in ModelsToUnload)
+        {
+            Models.Remove(model);
+        }
+        ModelsToUnload.Clear();
+    }
+
+    private void TrySavingLoadedModels()
+    {
+        if (EditorUtility.DisplayDialog("Save loaded models", "This will replace current saved models with the current loaded models. Continue?", "Yes", "Cancel"))
+        {
+            List<SavedModelData> modelData = new List<SavedModelData>();
+            foreach (var model in Models)
+            {
+                if (model.Path != null && model.Path != null)
+                    modelData.Add(new SavedModelData() { Path = model.Path, EulerRotation = model.EulerRotation });
+            }
+            Settings.SaveLoadedModels(modelData);
+        }
     }
 
     private void TakeModelImages()
@@ -164,17 +219,64 @@ public class ModelToImageEditor : EditorWindow
         screenshotCamera.ApplySettings(Settings.RenderTextureSettings, Settings.ModelSizeInImage, Settings.RenderBackground);
         foreach (var model in Models)
         {
+            if (model.Model == null)
+                continue;
+            if (model.Path == null || model.Path == "" || model.Importer == null)
+                model.RefreshMetaData();
             var screenshotPath = $"{Settings.ScreenshotRootPath}/{Settings.ImageNamePrefix}{model.Model.name}{Settings.ImageNameSuffix}.png";
             screenshotCamera.TakeScreenShot(model.Model, screenshotPath, model.EulerRotation);
         }
         screenshotCamera.Cleanup();
     }
 
+    private void LoadSingleModel()
+    {
+        var path = EditorUtility.OpenFilePanelWithFilters("Select model", "", new string[] { "obj", "fbx" });
+        if (path == null || path == "")
+            return;
+
+        var indexOfAssets = path.IndexOf("Assets");
+        if (indexOfAssets == -1)
+            return;
+        path = path.Substring(indexOfAssets);
+
+        var importer = AssetImporter.GetAtPath(path);
+        if (importer == null)
+            return;
+        var modelImporter = (ModelImporter)importer;
+        if (modelImporter == null)
+            return;
+        var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+        if (model == null)
+            return;
+        Models.Add(new ModelInfo() { Path = path, Importer = modelImporter, Model = model, EulerRotation = Vector3.zero });
+    }
+
+    private void LoadModelsInFolder()
+    {
+        var folderPath = EditorUtility.OpenFolderPanel("Select model folder", Settings.ScreenshotRootPath, "");
+        if (folderPath == null || folderPath == "")
+            return;
+        var indexOfAssets = folderPath.IndexOf("Assets");
+        if (indexOfAssets == -1)
+            return;
+        folderPath = folderPath.Substring(indexOfAssets);
+        var guids = AssetDatabase.FindAssets("t:model", new string[] { folderPath });
+        LoadModelsByGUIDS(guids);
+    }
+
     private void LoadModels()
     {
         Models.Clear();
         ModelsToUnload.Clear();
+        ModelsToInsert.Clear();
+        CurrentPage = 0;
         var guids = AssetDatabase.FindAssets("t:model");
+        LoadModelsByGUIDS(guids);
+    }
+
+    private void LoadModelsByGUIDS(string[] guids)
+    {
         foreach (var guid in guids)
         {
             if (guid == "")
@@ -194,6 +296,36 @@ public class ModelToImageEditor : EditorWindow
             if (model == null)
                 continue;
             Models.Add(new ModelInfo() { Path = path, Importer = modelImporter, Model = model, EulerRotation = Vector3.zero });
+        }
+    }
+
+    private void LoadModelsFromSettings()
+    {
+        Models.Clear();
+        ModelsToUnload.Clear();
+        ModelsToInsert.Clear();
+        var savedModelData = Settings.SavedModels;
+        if (savedModelData == null)
+            return;
+        for (int i = 0; i < savedModelData.Count; i++)
+        {
+            var modelData = savedModelData[i];
+            var path = modelData.Path;
+            var rot = modelData.EulerRotation;
+            if (path == "")
+                continue;
+            if (!path.StartsWith("Assets"))
+                continue;
+            var importer = AssetImporter.GetAtPath(path);
+            if (importer == null)
+                continue;
+            var modelImporter = (ModelImporter)importer;
+            if (modelImporter == null)
+                continue;
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (model == null)
+                continue;
+            Models.Add(new ModelInfo() { Path = path, Importer = modelImporter, Model = model, EulerRotation = rot });
         }
         CurrentPage = 0;
     }

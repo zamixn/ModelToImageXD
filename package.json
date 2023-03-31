@@ -1,6 +1,6 @@
 {
   "name": "com.frameworksxd.modeltoimagexd",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "displayName": "Model to Image XD",
   "description": "Renders your project models to images that can be used as icons",
   "unity": "2019.1",
