@@ -26,7 +26,7 @@ public class ModelToImageEditor : EditorWindow
 
     private class ModelInfo
     {
-        public ModelImporter Importer;
+        public AssetImporter Importer;
         public string Path;
         public GameObject Model;
         public Vector3 EulerRotation;
@@ -34,7 +34,7 @@ public class ModelToImageEditor : EditorWindow
         public void RefreshMetaData()
         {
             Path = AssetDatabase.GetAssetPath(Model);
-            Importer = (ModelImporter)AssetImporter.GetAtPath(Path);
+            Importer = AssetImporter.GetAtPath(Path);
         }
     }
 
@@ -153,7 +153,7 @@ public class ModelToImageEditor : EditorWindow
                 indexStyle.alignment = TextAnchor.MiddleRight;
                 GUILayout.Label($"{i+1}", indexStyle, GUILayout.MaxWidth(50));
 
-                EditorGUILayout.ObjectField(modelInfo.Model, typeof(GameObject), false, GUILayout.MaxWidth(200));
+                modelInfo.Model = (GameObject)EditorGUILayout.ObjectField(modelInfo.Model, typeof(GameObject), false, GUILayout.MaxWidth(200));
 
                 modelInfo.EulerRotation = EditorGUILayout.Vector3Field("Rot", modelInfo.EulerRotation, GUILayout.MaxWidth(150));
 
@@ -166,6 +166,12 @@ public class ModelToImageEditor : EditorWindow
                 GUILayout.EndHorizontal();
             }
             EditorGUILayout.EndScrollView();
+
+            if (GUILayout.Button("Add New"))
+                ModelsToInsert.Add(Models.Count, new ModelInfo());
+
+            if (GUILayout.Button("Clear"))
+                ModelsToUnload.AddRange(Models);
         }
 
         foreach (var item in ModelsToInsert)
@@ -243,13 +249,10 @@ public class ModelToImageEditor : EditorWindow
         var importer = AssetImporter.GetAtPath(path);
         if (importer == null)
             return;
-        var modelImporter = (ModelImporter)importer;
-        if (modelImporter == null)
-            return;
         var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
         if (model == null)
             return;
-        Models.Add(new ModelInfo() { Path = path, Importer = modelImporter, Model = model, EulerRotation = Vector3.zero });
+        Models.Add(new ModelInfo() { Path = path, Importer = importer, Model = model, EulerRotation = Vector3.zero });
     }
 
     private void LoadModelsInFolder()
@@ -289,13 +292,10 @@ public class ModelToImageEditor : EditorWindow
             var importer = AssetImporter.GetAtPath(path);
             if (importer == null)
                 continue;
-            var modelImporter = (ModelImporter)importer;
-            if (modelImporter == null)
-                continue;
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (model == null)
                 continue;
-            Models.Add(new ModelInfo() { Path = path, Importer = modelImporter, Model = model, EulerRotation = Vector3.zero });
+            Models.Add(new ModelInfo() { Path = path, Importer = importer, Model = model, EulerRotation = Vector3.zero });
         }
     }
 
@@ -319,13 +319,10 @@ public class ModelToImageEditor : EditorWindow
             var importer = AssetImporter.GetAtPath(path);
             if (importer == null)
                 continue;
-            var modelImporter = (ModelImporter)importer;
-            if (modelImporter == null)
-                continue;
             var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
             if (model == null)
                 continue;
-            Models.Add(new ModelInfo() { Path = path, Importer = modelImporter, Model = model, EulerRotation = rot });
+            Models.Add(new ModelInfo() { Path = path, Importer = importer, Model = model, EulerRotation = rot });
         }
         CurrentPage = 0;
     }
