@@ -193,7 +193,9 @@ public class ModelToImageEditor : EditorWindow
             List<SavedModelData> modelData = new List<SavedModelData>();
             foreach (var model in Models)
             {
-                if (model.Path != null && model.Path != null)
+                if (model.Model != null && (model.Path == null || model.Path == ""))
+                    model.RefreshMetaData();
+                if (model.Path != null && model.Path != "")
                     modelData.Add(new SavedModelData() { Path = model.Path, EulerRotation = model.EulerRotation });
             }
             Settings.SaveLoadedModels(modelData);
