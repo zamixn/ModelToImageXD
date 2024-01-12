@@ -1,10 +1,14 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+
+#if UNITY_EDITOR
 using UnityEditor;
+#endif
 using UnityEngine;
 using System.Linq;
 
+#if UNITY_EDITOR
 public class ModelScreenShotter : MonoBehaviour
 {
     public enum AntialisingMode
@@ -182,3 +186,7 @@ public class ModelScreenShotter : MonoBehaviour
         ScreenshotRenderTexture = null;
     }
 }
+#else
+public class ModelScreenShotter : MonoBehaviour
+{ }
+#endif
