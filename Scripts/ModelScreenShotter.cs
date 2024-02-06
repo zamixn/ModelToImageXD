@@ -1,22 +1,16 @@
-using System.Collections;
-using System.Collections.Generic;
 using System.IO;
-
-using UnityEditor;
 using UnityEngine;
-using System.Linq;
 
 public class ModelScreenShotter : MonoBehaviour
 {
     public enum AntialisingMode
-    { 
+    {
         None = 0,
         Smaple2 = 1,
         Sample4 = 2,
         Sample8 = 3
     }
 
-    private Color BGColor = new Color(0, 0, 0, 0);
 
     [System.Serializable]
     public struct RenderTextureSettings
@@ -29,12 +23,30 @@ public class ModelScreenShotter : MonoBehaviour
         public FilterMode ImageFilterMode;
     }
 
+    private Color BGColor = new Color(0, 0, 0, 0);
+
     [SerializeField] private Transform ModelRoot;
     [SerializeField] private Camera Camera;
     [SerializeField] private GameObject model;
 
     private RenderTextureSettings CurrentRenderTextureSettings;
     private float TargetSizeInImage;
+
+    private IModelScreenShotterFunctionality ScreenShooterFunctionalityCache;
+    private IModelScreenShotterFunctionality ScreenShooterFunctionality { get 
+        {
+            if (ScreenShooterFunctionalityCache == null)
+            {
+#if UNITY_EDITOR
+                ScreenShooterFunctionalityCache = new ModelScreenShotterEditorFunctionality();
+#else
+                ScreenShooterFunctionalityCache = new ModelScreenShotterDummyFunctionality();
+#endif
+
+            }
+
+            return ScreenShooterFunctionalityCache;
+        } }
 
     private RenderTexture ScreenshotRenderTexture;
 
@@ -60,7 +72,7 @@ public class ModelScreenShotter : MonoBehaviour
         }
 
         Debug.Log($"taking screen shot of: {modelPrefab.name}");
-        var spawnedModel = (GameObject)PrefabUtility.InstantiatePrefab(modelPrefab, ModelRoot);
+        var spawnedModel = ScreenShooterFunctionality.InstantiatePrefab(modelPrefab, ModelRoot);
         spawnedModel.transform.position = Vector3.zero;
         RotateModel(spawnedModel, rotation);
         ScaleModel(spawnedModel);
