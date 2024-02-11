@@ -32,22 +32,6 @@ public class ModelScreenShotter : MonoBehaviour
     private RenderTextureSettings CurrentRenderTextureSettings;
     private float TargetSizeInImage;
 
-    private IModelScreenShotterFunctionality ScreenShooterFunctionalityCache;
-    private IModelScreenShotterFunctionality ScreenShooterFunctionality { get 
-        {
-            if (ScreenShooterFunctionalityCache == null)
-            {
-#if UNITY_EDITOR
-                ScreenShooterFunctionalityCache = new ModelScreenShotterEditorFunctionality();
-#else
-                ScreenShooterFunctionalityCache = new ModelScreenShotterDummyFunctionality();
-#endif
-
-            }
-
-            return ScreenShooterFunctionalityCache;
-        } }
-
     private RenderTexture ScreenshotRenderTexture;
 
     public void ApplySettings(RenderTextureSettings renderTextureSettings, float targetSizeInImage, bool renderBackground)
@@ -65,6 +49,7 @@ public class ModelScreenShotter : MonoBehaviour
 
     public void TakeScreenShot(GameObject modelPrefab, string outputPath, Vector3 rotation)
     {
+#if UNITY_EDITOR
         if (ScreenshotRenderTexture == null)
         {
             Debug.LogError("Init not called");
@@ -72,7 +57,7 @@ public class ModelScreenShotter : MonoBehaviour
         }
 
         Debug.Log($"taking screen shot of: {modelPrefab.name}");
-        var spawnedModel = ScreenShooterFunctionality.InstantiatePrefab(modelPrefab, ModelRoot);
+        var spawnedModel = (GameObject)UnityEditor.PrefabUtility.InstantiatePrefab(modelPrefab, ModelRoot);
         spawnedModel.transform.position = Vector3.zero;
         RotateModel(spawnedModel, rotation);
         ScaleModel(spawnedModel);
@@ -90,6 +75,7 @@ public class ModelScreenShotter : MonoBehaviour
 
         RenderTexture.active = prevActiveRenderTexture;
         DestroyImmediate(spawnedModel);
+#endif
     }
 
     private void PositionModel(GameObject model)
